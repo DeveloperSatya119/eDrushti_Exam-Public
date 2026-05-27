@@ -1,0 +1,375 @@
+﻿@model List<eDrushti_Exam.App.Models.Candidate>
+@{
+    ViewData["Title"] = "Candidates";
+    var tracks = ViewBag.Tracks as List<eDrushti_Exam.App.Models.Track> ?? new();
+}
+
+<div class="page">
+
+    <!-- ── Page header ── -->
+    <div class="flex-between page-head">
+        <div>
+            <h1>Candidates</h1>
+            <p>@Model.Count registered candidate(s)</p>
+        </div>
+        <button class="btn btn-primary" onclick="openModal('c-add-modal')">+ Add Candidate</button>
+    </div>
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success">✓ @TempData["Success"]</div>
+    }
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger">@TempData["Error"]</div>
+    }
+
+    <!-- ── Filters ── -->
+    <div style="display:flex;gap:.75rem;margin-bottom:1.25rem;flex-wrap:wrap;align-items:center">
+        <input id="c-search" class="form-control" style="max-width:260px"
+               placeholder="Name or email…" oninput="filterC()" />
+        <select id="c-track-f" class="form-control" style="max-width:150px" onchange="filterC()">
+            <option value="">All tracks</option>
+            @foreach (var t in tracks)
+            {
+                <option value="@t.Slug">@t.Name</option>
+            }
+        </select>
+        <select id="c-status-f" class="form-control" style="max-width:140px" onchange="filterC()">
+            <option value="">All status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+        </select>
+        <select id="c-submitted-f" class="form-control" style="max-width:150px" onchange="filterC()">
+            <option value="">All submissions</option>
+            <option value="yes">Submitted</option>
+            <option value="no">Pending</option>
+        </select>
+        <span id="c-count" class="text-muted" style="font-size:.82rem"></span>
+    </div>
+
+    <!-- ── Table ── -->
+    <div class="card" style="padding:0">
+        <div class="table-wrap">
+            <table id="c-table">
+                <thead>
+                    <tr>
+                        <th style="width:36px">#</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>Track</th>
+                        <th>Status</th>
+                        <th>Submitted</th>
+                        <th style="white-space:nowrap">Added on</th>
+                        <th style="width:200px">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.Any())
+                    {
+                        <tr>
+                            <td colspan="9" style="text-align:center;padding:3rem;color:var(--muted)">
+                                No candidates yet.
+                                <a href="#" style="color:var(--accent)" onclick="openModal('c-add-modal');return false;">Add one →</a>
+                            </td>
+                        </tr>
+                    }
+                    @{
+                        int ci = 1;
+                    }
+                    @foreach (var c in Model)
+                    {
+                        var slug = c.Track?.Slug ?? "";
+                        var submitted = c.Answers.Any() ? "yes" : "no";
+                        var status = c.IsActive ? "active" : "inactive";
+                        <tr 
+                            
+                            data-name="@c.FullName.ToLower()"
+                            data-email="@c.Email.ToLower()"
+                            data-track="@slug"
+                            data-status="@status"
+                            data-submitted="@submitted">
+                            <td class="text-muted" style="font-size:.78rem">@(ci++)</td>
+                            <td style="font-weight:500">@c.FullName</td>
+                            <td class="text-muted" style="font-size:.85rem">@c.Email</td>
+                            <td class="text-muted" style="font-size:.82rem">@(c.Phone ?? "—")</td>
+                            <td><span class="badge badge-@slug">@(c.Track?.Name ?? "—")</span></td>
+                            <td>
+                                <span class="badge @(c.IsActive ? "badge-active" : "badge-off")">
+                                    @(c.IsActive ? "Active" : "Inactive")
+                                </span>
+                            </td>
+                            <td>
+                                @if (c.Answers.Any())
+                                {
+                                    <span class="badge badge-active">Yes</span>
+                                }
+                                else
+                                {
+
+                                    <span class="badge badge-pending">Pending</span>
+                                }
+                            </td>
+                            <td class="text-muted" style="font-size:.78rem;white-space:nowrap">
+                                @c.CreatedAt.ToString("dd MMM yyyy")
+                            </td>
+                            <td>
+                                <div style="display:flex;gap:.35rem;flex-wrap:wrap">
+                                    <button class="btn btn-secondary btn-sm"
+                                            onclick="openEditCandidate(@c.Id)">
+                                        Edit
+                                    </button>
+                                    @if (c.Answers.Any())
+                                    {
+                                        <a href="/Admin/Results/@c.Id" class="btn btn-info btn-sm">Results</a>
+                                        <button class="btn btn-secondary btn-sm"
+                                                onclick="openResetModal(@c.Id,'@Html.Raw(c.FullName.Replace("'", "\\'"))')">
+                                            Reset
+                                        </button>
+                                    }
+                                    <button class="btn btn-danger btn-sm"
+                                            onclick="openDeleteModal(@c.Id,'@Html.Raw(c.FullName.Replace("'", "\\'"))')">
+                                        Delete
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     ADD CANDIDATE MODAL
+═════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="c-add-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title">Add Candidate</span>
+            <button class="modal-close" onclick="closeModal('c-add-modal')">✕</button>
+        </div>
+        <form id="c-add-form" action="/Admin/Candidates/Create" method="post">
+            @Html.AntiForgeryToken()
+            <div class="modal-body">
+                <div id="c-add-err" class="modal-error"></div>
+                <div class="form-grid">
+                    <div class="form-group span2">
+                        <label class="form-label">Full name <span style="color:var(--danger)">*</span></label>
+                        <input class="form-control" name="FullName" placeholder="e.g. Ravi Kumar"
+                               required maxlength="150" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email <span style="color:var(--danger)">*</span></label>
+                        <input class="form-control" name="Email" type="email"
+                               placeholder="ravi@example.com" required />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Phone <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+                        <input class="form-control" name="Phone" placeholder="+91 98765 43210" maxlength="20" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Password <span style="color:var(--danger)">*</span></label>
+                        <input class="form-control" name="Password" type="password"
+                               placeholder="Min. 6 characters" required minlength="6" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Track <span style="color:var(--danger)">*</span></label>
+                        <select class="form-control" name="TrackId" required>
+                            <option value="">— Select track —</option>
+                            @foreach (var t in tracks)
+                            {
+                                <option value="@t.Id">@t.Name — @t.Description</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Status</label>
+                        <select class="form-control" name="IsActive">
+                            <option value="true">Active</option>
+                            <option value="false">Inactive</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('c-add-modal')">Cancel</button>
+                <button type="button" class="btn btn-primary"
+                        onclick="submitModal('c-add-form','c-add-err',()=>location.reload())">
+                    Add Candidate
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     EDIT CANDIDATE MODAL
+═════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="c-edit-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title">Edit Candidate</span>
+            <button class="modal-close" onclick="closeModal('c-edit-modal')">✕</button>
+        </div>
+        <form id="c-edit-form" action="/Admin/Candidates/Edit" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="Id" id="edit-c-id" />
+            <div class="modal-body">
+                <div id="c-edit-err" class="modal-error"></div>
+                <div class="form-grid">
+                    <div class="form-group span2">
+                        <label class="form-label">Full name <span style="color:var(--danger)">*</span></label>
+                        <input class="form-control" name="FullName" id="edit-c-name"
+                               required maxlength="150" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email <span style="color:var(--danger)">*</span></label>
+                        <input class="form-control" name="Email" id="edit-c-email"
+                               type="email" required />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Phone</label>
+                        <input class="form-control" name="Phone" id="edit-c-phone" maxlength="20" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">New password</label>
+                        <input class="form-control" name="Password" type="password"
+                               placeholder="Leave blank to keep current" minlength="6" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Track <span style="color:var(--danger)">*</span></label>
+                        <select class="form-control" name="TrackId" id="edit-c-track" required>
+                            @foreach (var t in tracks)
+                            {
+                                <option value="@t.Id">@t.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Status</label>
+                        <select class="form-control" name="IsActive" id="edit-c-active">
+                            <option value="true">Active</option>
+                            <option value="false">Inactive</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('c-edit-modal')">Cancel</button>
+                <button type="button" class="btn btn-primary"
+                        onclick="submitModal('c-edit-form','c-edit-err',()=>location.reload())">
+                    Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     DELETE CONFIRM MODAL
+═════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="c-del-modal">
+    <div class="modal" style="max-width:430px">
+        <div class="modal-header">
+            <span class="modal-title" style="color:var(--danger)">Delete Candidate</span>
+            <button class="modal-close" onclick="closeModal('c-del-modal')">✕</button>
+        </div>
+        <div class="modal-body">
+            <p style="color:var(--muted);font-size:.9rem;line-height:1.65">
+                Permanently delete <strong id="del-c-name" style="color:var(--text)"></strong>?
+                This will also remove all their submitted answers and cannot be undone.
+            </p>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('c-del-modal')">Cancel</button>
+            <form id="c-del-form" method="post">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-danger">Yes, Delete</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     RESET SUBMISSION MODAL
+═════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="c-reset-modal">
+    <div class="modal" style="max-width:430px">
+        <div class="modal-header">
+            <span class="modal-title">Reset Submission</span>
+            <button class="modal-close" onclick="closeModal('c-reset-modal')">✕</button>
+        </div>
+        <div class="modal-body">
+            <p style="color:var(--muted);font-size:.9rem;line-height:1.65">
+                Reset the interview submission for
+                <strong id="reset-c-name" style="color:var(--text)"></strong>?
+                All their answers will be deleted and they can retake the interview.
+            </p>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('c-reset-modal')">Cancel</button>
+            <form id="c-reset-form" method="post">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-primary">Yes, Reset</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // ── Filter ────────────────────────────────────────────────────────────────────
+        function filterC() {
+            const txt   = document.getElementById('c-search').value.toLowerCase();
+            const track = document.getElementById('c-track-f').value;
+            const sts   = document.getElementById('c-status-f').value;
+            const sub   = document.getElementById('c-submitted-f').value;
+            let vis = 0;
+            document.querySelectorAll('#c-table tbody tr[data-name]').forEach(row => {
+                const m1 = !txt   || (row.dataset.name + ' ' + row.dataset.email).includes(txt);
+                const m2 = !track || row.dataset.track     === track;
+                const m3 = !sts   || row.dataset.status    === sts;
+                const m4 = !sub   || row.dataset.submitted === sub;
+                const show = m1 && m2 && m3 && m4;
+                row.style.display = show ? '' : 'none';
+                if (show) vis++;
+            });
+            document.getElementById('c-count').textContent = `${vis} shown`;
+        }
+
+        // ── Edit modal ────────────────────────────────────────────────────────────────
+        async function openEditCandidate(id) {
+            const res = await fetch(`/Admin/Candidates/GetJson/${id}`);
+            if (!res.ok) { alert('Could not load candidate.'); return; }
+            const d = await res.json();
+
+            document.getElementById('edit-c-id').value     = d.id;
+            document.getElementById('edit-c-name').value   = d.fullName;
+            document.getElementById('edit-c-email').value  = d.email;
+            document.getElementById('edit-c-phone').value  = d.phone || '';
+            document.getElementById('edit-c-track').value  = d.trackId;
+            document.getElementById('edit-c-active').value = d.isActive ? 'true' : 'false';
+
+            openModal('c-edit-modal');
+        }
+
+        // ── Delete modal ──────────────────────────────────────────────────────────────
+        function openDeleteModal(id, name) {
+            document.getElementById('del-c-name').textContent = name;
+            document.getElementById('c-del-form').action = `/Admin/Candidates/Delete/${id}`;
+            openModal('c-del-modal');
+        }
+
+        // ── Reset modal ───────────────────────────────────────────────────────────────
+        function openResetModal(id, name) {
+            document.getElementById('reset-c-name').textContent = name;
+            document.getElementById('c-reset-form').action = `/Admin/Candidates/ResetSubmission/${id}`;
+            openModal('c-reset-modal');
+        }
+
+        filterC();
+    </script>
+}

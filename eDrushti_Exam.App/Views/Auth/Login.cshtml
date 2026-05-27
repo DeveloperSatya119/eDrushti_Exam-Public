@@ -1,0 +1,500 @@
+﻿@model eDrushti_Exam.App.Models.LoginViewModel
+@{
+    ViewData["Title"] = "Sign In";
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sign In — eDrushti Exam</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #ffffff;
+            --bg2: #f8f9fa;
+            --bg3: #f1f3f5;
+            --border: #dee2e6;
+            --border2: #ced4da;
+            --text: #1a1a1a;
+            --muted: #6c757d;
+            --dim: #adb5bd;
+            --blue: #1971c2;
+            --blue-bg: #e7f5ff;
+            --blue-bd: #a5d8ff;
+            --green: #2f9e44;
+            --green-bg: #ebfbee;
+            --green-bd: #b2f2bb;
+            --orange: #e67700;
+            --orange-bg: #fff9db;
+            --orange-bd: #ffe066;
+            --red: #c92a2a;
+            --red-bg: #fff5f5;
+            --red-bd: #ffc9c9;
+            --font: 'Inter', sans-serif;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--font);
+            min-height: 100vh;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .panel-left {
+            background: #f8f9fa;
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 3rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+            /* subtle top-left circle decoration */
+            .panel-left::before {
+                content: '';
+                position: absolute;
+                top: -100px;
+                left: -100px;
+                width: 360px;
+                height: 360px;
+                background: radial-gradient(circle, rgba(25,113,194,.06) 0%, transparent 65%);
+                pointer-events: none;
+            }
+
+            .panel-left::after {
+                content: '';
+                position: absolute;
+                bottom: -80px;
+                right: -80px;
+                width: 280px;
+                height: 280px;
+                background: radial-gradient(circle, rgba(47,158,68,.05) 0%, transparent 65%);
+                pointer-events: none;
+            }
+
+        /* brand */
+        .brand {
+            font-family: var(--font);
+            font-weight: 800;
+            font-size: 1.3rem;
+            letter-spacing: -0.4px;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .brand-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: var(--blue);
+        }
+
+        .brand em {
+            color: var(--blue);
+            font-style: normal;
+        }
+
+        /* tagline */
+        .left-body {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 2rem 0;
+        }
+
+        .left-tagline {
+            font-family: var(--font);
+            font-size: 2.5rem;
+            font-weight: 800;
+            line-height: 1.15;
+            letter-spacing: -1.2px;
+            color: var(--text);
+            margin-bottom: 1.25rem;
+        }
+
+            .left-tagline em {
+                font-style: normal;
+                color: var(--blue);
+            }
+
+        .left-desc {
+            color: var(--muted);
+            font-size: 0.9rem;
+            line-height: 1.75;
+            max-width: 340px;
+            font-weight: 400;
+        }
+
+        /* track pills */
+        .track-pills {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .pill {
+            font-size: 0.72rem;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 99px;
+            letter-spacing: 0.04em;
+            font-family: var(--font);
+        }
+
+        .pill-java {
+            background: var(--green-bg);
+            color: var(--green);
+            border: 1px solid var(--green-bd);
+        }
+
+        .pill-dotnet {
+            background: var(--blue-bg);
+            color: var(--blue);
+            border: 1px solid var(--blue-bd);
+        }
+
+        .pill-qa {
+            background: var(--orange-bg);
+            color: var(--orange);
+            border: 1px solid var(--orange-bd);
+        }
+
+        /* feature list */
+        .feature-list {
+            margin-top: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.65rem;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-size: 0.82rem;
+            color: var(--muted);
+        }
+
+        .feature-icon {
+            width: 22px;
+            height: 22px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            flex-shrink: 0;
+        }
+
+        .fi-blue {
+            background: var(--blue-bg);
+            border: 1px solid var(--blue-bd);
+        }
+
+        .fi-green {
+            background: var(--green-bg);
+            border: 1px solid var(--green-bd);
+        }
+
+        .fi-orange {
+            background: var(--orange-bg);
+            border: 1px solid var(--orange-bd);
+        }
+
+        .left-footer {
+            font-size: 0.73rem;
+            color: var(--dim);
+            font-weight: 400;
+        }
+
+
+        .panel-right {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            background: var(--bg);
+        }
+
+        .login-box {
+            width: 100%;
+            max-width: 390px;
+        }
+
+        /* logo repeat on right (mobile/right panel) */
+        .login-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-weight: 800;
+            font-size: 1rem;
+            color: var(--text);
+            margin-bottom: 2rem;
+        }
+
+            .login-brand em {
+                font-style: normal;
+                color: var(--blue);
+            }
+
+        .login-brand-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--blue);
+        }
+
+        .login-title {
+            font-size: 1.6rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            color: var(--text);
+            margin-bottom: 0.3rem;
+        }
+
+        .login-sub {
+            color: var(--muted);
+            font-size: 0.875rem;
+            margin-bottom: 1.75rem;
+            font-weight: 400;
+        }
+
+        /* form */
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text);
+            letter-spacing: 0.01em;
+            margin-bottom: 0.35rem;
+        }
+
+        .form-control {
+            width: 100%;
+            background: #fff;
+            border: 1px solid var(--border2);
+            border-radius: 8px;
+            color: var(--text);
+            font-family: var(--font);
+            font-size: 0.9rem;
+            padding: 0.68rem 1rem;
+            transition: border-color .15s, box-shadow .15s;
+            outline: none;
+        }
+
+            .form-control:focus {
+                border-color: var(--blue);
+                box-shadow: 0 0 0 3px rgba(25,113,194,.1);
+            }
+
+            .form-control::placeholder {
+                color: var(--dim);
+            }
+
+        .field-error {
+            color: var(--red);
+            font-size: 0.75rem;
+            margin-top: 0.3rem;
+            display: block;
+        }
+
+        /* alert */
+        .alert-danger {
+            background: var(--red-bg);
+            border: 1px solid var(--red-bd);
+            border-radius: 8px;
+            color: var(--red);
+            font-size: 0.83rem;
+            padding: 0.7rem 1rem;
+            margin-bottom: 1.25rem;
+            line-height: 1.5;
+        }
+
+        /* submit button */
+        .btn-login {
+            width: 100%;
+            background: var(--blue);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-family: var(--font);
+            font-size: 0.9rem;
+            font-weight: 600;
+            padding: 0.75rem;
+            cursor: pointer;
+            margin-top: 0.5rem;
+            transition: background .15s, transform .1s, box-shadow .15s;
+            letter-spacing: 0.01em;
+        }
+
+            .btn-login:hover {
+                background: #1864ab;
+                box-shadow: 0 4px 14px rgba(25,113,194,.25);
+            }
+
+            .btn-login:active {
+                transform: scale(.99);
+            }
+
+        /* divider */
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin: 1.5rem 0;
+            color: var(--dim);
+            font-size: 0.75rem;
+        }
+
+            .divider::before, .divider::after {
+                content: '';
+                flex: 1;
+                height: 1px;
+                background: var(--border);
+            }
+
+        /* role hint */
+        .role-hint {
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.85rem 1rem;
+            font-size: 0.8rem;
+            color: var(--muted);
+            line-height: 1.65;
+        }
+
+            .role-hint strong {
+                color: var(--text);
+                font-weight: 600;
+            }
+
+        /* responsive */
+        @@media (max-width: 768px) {
+            body {
+                grid-template-columns: 1fr;
+            }
+
+            .panel-left {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="panel-left">
+        <div class="brand">
+            <span class="brand-dot"></span>
+            eDrushti Interview
+        </div>
+
+        <div class="left-body">
+            <h1 class="left-tagline">
+                Online<br />Tech <em>Interview</em><br />Platform
+            </h1>
+            <p class="left-desc">
+                Candidates sign in to attempt their assigned interview.
+                Admins manage questions, tracks, and candidates from a central dashboard.
+            </p>
+
+            <div class="track-pills">
+                <span class="pill pill-java">Java</span>
+                <span class="pill pill-dotnet">.NET</span>
+                <span class="pill pill-qa">QA</span>
+            </div>
+
+            <div class="feature-list">
+                <div class="feature-item">
+                    <span class="feature-icon fi-blue">📋</span>
+                    Topic-wise questions per technology track
+                </div>
+                <div class="feature-item">
+                    <span class="feature-icon fi-green">⏱</span>
+                    Timed interview with auto-save
+                </div>
+                <div class="feature-item">
+                    <span class="feature-icon fi-orange">📊</span>
+                    Admin can review all submitted answers
+                </div>
+            </div>
+        </div>
+
+        <div class="left-footer">© @DateTime.Now.Year eDrushti Online Interview Platform</div>
+    </div>
+
+    <div class="panel-right">
+        <div class="login-box">
+
+
+            <h2 class="login-title">Welcome back</h2>
+            <p class="login-sub">Sign in to continue to your interview</p>
+
+            @if (!ViewData.ModelState.IsValid)
+            {
+                <div class="alert-danger">
+                    @foreach (var err in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+                    {
+                        <div>@err.ErrorMessage</div>
+                    }
+                </div>
+            }
+
+            <form method="post" asp-action="Login" asp-controller="Auth">
+                @Html.AntiForgeryToken()
+
+                <div class="form-group">
+                    <label class="form-label" asp-for="Email">Email address</label>
+                    <input class="form-control"
+                           asp-for="Email"
+                           type="email"
+                           placeholder="you@example.com"
+                           autocomplete="email" />
+                    <span class="field-error" asp-validation-for="Email"></span>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" asp-for="Password">Password</label>
+                    <input class="form-control"
+                           asp-for="Password"
+                           type="password"
+                           placeholder="Enter your password"
+                           autocomplete="current-password" />
+                    <span class="field-error" asp-validation-for="Password"></span>
+                </div>
+
+                <button type="submit" class="btn-login">Sign In →</button>
+            </form>
+
+            <div class="divider">or</div>
+
+            <div class="role-hint">
+                <strong>Candidate?</strong> Use the credentials provided by your interviewer.<br />
+                <strong>Admin?</strong> Use your admin account to manage the portal.
+            </div>
+
+        </div>
+    </div>
+
+</body>
+</html>

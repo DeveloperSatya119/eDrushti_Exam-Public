@@ -1,0 +1,102 @@
+﻿@model List<eDrushti_Exam.App.Models.CandidateResultViewModel>
+@{
+    ViewData["Title"] = "Results";
+}
+
+<div class="page">
+
+    <div class="flex-between page-head">
+        <div>
+            <h1>Results</h1>
+            <p>@Model.Count submission(s) received</p>
+        </div>
+    </div>
+
+    <!-- ── Filters ── -->
+    <div style="display:flex;gap:.75rem;margin-bottom:1.25rem;flex-wrap:wrap;align-items:center">
+        <input id="r-search" class="form-control" style="max-width:260px"
+               placeholder="Name or email…" oninput="filterR()" />
+        <select id="r-track" class="form-control" style="max-width:150px" onchange="filterR()">
+            <option value="">All tracks</option>
+            <option value="java">Java</option>
+            <option value="dotnet">.NET</option>
+            <option value="qa">QA</option>
+        </select>
+        <span id="r-count" class="text-muted" style="font-size:.82rem"></span>
+    </div>
+
+    <div class="card" style="padding:0">
+        <div class="table-wrap">
+            <table id="r-table">
+                <thead>
+                    <tr>
+                        <th style="width:36px">#</th>
+                        <th>Candidate</th>
+                        <th>Email</th>
+                        <th>Track</th>
+                        <th>Answers</th>
+                        <th>Submitted</th>
+                        <th style="width:100px">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.Any())
+                    {
+                        <tr>
+                            <td colspan="7" style="text-align:center;padding:3rem;color:var(--muted)">
+                                No submissions yet.
+                            </td>
+                        </tr>
+                    }
+                    @{
+                        int ri = 1;
+                    }
+                    @foreach (var r in Model)
+                    {
+                        <tr data-name="@r.FullName.ToLower()"
+                            data-email="@r.Email.ToLower()"
+                            data-track="@r.TrackSlug">
+                            <td class="text-muted" style="font-size:.78rem">@(ri++)</td>
+                            <td style="font-weight:500">@r.FullName</td>
+                            <td class="text-muted" style="font-size:.85rem">@r.Email</td>
+                            <td><span class="badge badge-@r.TrackSlug">@r.TrackName</span></td>
+                            <td>
+                                <span style="font-family:var(--font-head);font-weight:700;color:var(--accent);font-size:1rem">
+                                    @r.TotalAnswers
+                                </span>
+                                <span class="text-muted" style="font-size:.78rem"> answered</span>
+                            </td>
+                            <td class="text-muted" style="font-size:.82rem;white-space:nowrap">
+                                @r.SubmittedAt.ToString("dd MMM yyyy, HH:mm")
+                            </td>
+                            <td>
+                                <a href="/Admin/Results/@r.CandidateId" class="btn btn-info btn-sm">
+                                    View →
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function filterR() {
+            const txt   = document.getElementById('r-search').value.toLowerCase();
+            const track = document.getElementById('r-track').value;
+            let vis = 0;
+            document.querySelectorAll('#r-table tbody tr[data-name]').forEach(row => {
+                const m1 = !txt   || (row.dataset.name + ' ' + row.dataset.email).includes(txt);
+                const m2 = !track || row.dataset.track === track;
+                const show = m1 && m2;
+                row.style.display = show ? '' : 'none';
+                if (show) vis++;
+            });
+            document.getElementById('r-count').textContent = `${vis} shown`;
+        }
+        filterR();
+    </script>
+}

@@ -1,0 +1,119 @@
+﻿@model eDrushti_Exam.App.Models.CandidateResultDetailViewModel
+@{
+    ViewData["Title"] = $"Results — {Model.FullName}";
+    var grouped = Model.Answers
+        .GroupBy(a => a.Question?.Topic?.Name ?? "General")
+        .ToList();
+}
+
+<div class="page" style="max-width:920px">
+
+    <!-- ── Header ── -->
+    <div style="margin-bottom:2rem">
+        <a href="/Admin/Results" class="btn btn-secondary btn-sm"
+           style="margin-bottom:1rem;display:inline-flex">← Back to Results</a>
+
+        <div class="flex-between">
+            <div>
+                <h1 style="font-family:var(--font-head);font-size:1.5rem;font-weight:800;letter-spacing:-.5px">
+                    @Model.FullName
+                </h1>
+                <div style="display:flex;align-items:center;gap:.75rem;margin-top:.4rem;flex-wrap:wrap">
+                    <span class="text-muted" style="font-size:.85rem">@Model.Email</span>
+                    <span class="badge badge-@Model.TrackSlug">@Model.TrackName</span>
+                    @if (Model.SubmittedAt.HasValue)
+                    {
+                        <span class="text-muted" style="font-size:.8rem">
+                            Submitted @Model.SubmittedAt.Value.ToString("dd MMM yyyy, HH:mm")
+                        </span>
+                    }
+                </div>
+            </div>
+            <a href="/Admin/Candidates" class="btn btn-secondary btn-sm">Manage Candidate</a>
+        </div>
+    </div>
+
+    <!-- ── Stats ── -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:1rem;margin-bottom:2rem">
+        <div class="stat">
+            <div class="stat-val" style="color:var(--accent)">@Model.Answers.Count</div>
+            <div class="stat-lbl">Total answers</div>
+        </div>
+        <div class="stat">
+            <div class="stat-val" style="color:var(--accent2)">@grouped.Count</div>
+            <div class="stat-lbl">Topics covered</div>
+        </div>
+        <div class="stat">
+            <div class="stat-val" style="color:var(--success)">
+                @Model.Answers.Count(a => a.AnswerText.Trim().Length > 80)
+            </div>
+            <div class="stat-lbl">Detailed answers</div>
+        </div>
+        <div class="stat">
+            <div class="stat-val" style="color:var(--warning)">
+                @(Model.Answers.Any() ? (int)Model.Answers.Average(a => a.AnswerText.Length) : 0)
+            </div>
+            <div class="stat-lbl">Avg. chars / answer</div>
+        </div>
+    </div>
+
+    <!-- ── Answers grouped by topic ── -->
+    @foreach (var group in grouped)
+    {
+        <!-- Topic divider -->
+        <div style="display:flex;align-items:center;gap:.75rem;margin:2rem 0 1rem">
+            <span style="font-family:var(--font-head);font-size:.75rem;font-weight:700;
+                             text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
+                             white-space:nowrap">
+                @group.Key
+            </span>
+            <div style="flex:1;height:1px;background:var(--border)"></div>
+            <span class="text-muted" style="font-size:.75rem;white-space:nowrap">
+                @group.Count() answer(s)
+            </span>
+        </div>
+
+        @foreach (var ans in group)
+        {
+            <div class="card" style="margin-bottom:1rem;padding:1.5rem">
+                <!-- Question -->
+                <div style="display:flex;gap:.75rem;margin-bottom:1.1rem;align-items:flex-start">
+                    <span style="font-family:var(--font-head);font-size:.7rem;font-weight:700;
+                                         color:var(--accent);background:rgba(232,255,71,.08);
+                                         border:1px solid rgba(232,255,71,.15);border-radius:5px;
+                                         padding:3px 8px;white-space:nowrap;flex-shrink:0;margin-top:2px">
+                        Q@(ans.Question?.OrderIndex)
+                    </span>
+                    <p style="font-size:.92rem;line-height:1.6;color:var(--text);font-weight:500">
+                        @ans.Question?.QuestionText
+                    </p>
+                </div>
+
+                <!-- Answer -->
+                <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+                                    padding:1rem 1.1rem;font-size:.875rem;line-height:1.75;
+                                    color:var(--text);white-space:pre-wrap;word-break:break-word">
+                    @ans.AnswerText
+                </div>
+
+                <!-- Meta -->
+                <div style="display:flex;gap:1rem;margin-top:.6rem;font-size:.75rem;color:var(--muted)">
+                    <span>📅 @ans.SubmittedAt.ToString("dd MMM yyyy, HH:mm")</span>
+                    <span>📝 @ans.AnswerText.Length characters</span>
+                    @if (ans.AnswerText.Trim().Length < 30)
+                    {
+                        <span style="color:var(--warning)">⚠ Very short answer</span>
+                    }
+                </div>
+            </div>
+        }
+    }
+
+    @if (!Model.Answers.Any())
+    {
+        <div class="card" style="text-align:center;padding:3rem;color:var(--muted)">
+            This candidate has not submitted any answers yet.
+        </div>
+    }
+
+</div>
