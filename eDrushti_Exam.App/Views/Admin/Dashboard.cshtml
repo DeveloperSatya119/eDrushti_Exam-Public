@@ -362,7 +362,7 @@ select.form-control{cursor:pointer}
         </div>
         <div class="card-body-np table-wrap">
           <table id="c-table">
-            <thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Track</th><th>Status</th><th>Submitted</th><th>Added</th><th>Actions</th></tr></thead>
+            <thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Track</th><th>Status</th><th>Photo</th><th>Submitted</th><th>Added</th><th>Actions</th></tr></thead>
             <tbody>
               @{ int ci=1; }
               @foreach (var c in allCands)
@@ -374,6 +374,16 @@ select.form-control{cursor:pointer}
                   <td style="color:var(--muted)">@(c.Phone??"—")</td>
                   <td><span class="badge badge-@slug">@(c.Track?.Name??"—")</span></td>
                   <td><span class="badge @(c.IsActive?"badge-active":"badge-off")">@(c.IsActive?"Active":"Inactive")</span></td>
+                  <td>
+                    @if (c.IsPhotoRequired)
+                    {
+                      <span class="badge @(string.IsNullOrWhiteSpace(c.PhotoPath) ? "badge-pending" : "badge-active")">@(string.IsNullOrWhiteSpace(c.PhotoPath) ? "Required" : "Captured")</span>
+                    }
+                    else
+                    {
+                      <span class="badge badge-off">No</span>
+                    }
+                  </td>
                   <td>@Html.Raw(c.Answers.Any()?"<span class='badge badge-active'>Yes</span>":"<span class='badge badge-pending'>Pending</span>")</td>
                   <td style="color:var(--muted);font-size:.72rem;white-space:nowrap">@c.CreatedAt.ToString("dd MMM yyyy")</td>
                   <td>
@@ -535,6 +545,13 @@ select.form-control{cursor:pointer}
               <option value="false">Inactive</option>
             </select>
           </div>
+          <div class="form-group span2">
+            <label class="form-label">Is Photo Required?</label>
+            <select class="form-control" name="IsPhotoRequired">
+              <option value="false">No</option>
+              <option value="true">Yes</option>
+            </select>
+          </div>
         </div>
       </div>
       <div class="modal-foot">
@@ -587,6 +604,14 @@ select.form-control{cursor:pointer}
               <option value="true">Active</option>
               <option value="false">Inactive</option>
             </select>
+          </div>
+          <div class="form-group span2">
+            <label class="form-label">Is Photo Required?</label>
+            <select class="form-control" name="IsPhotoRequired" id="ec-photo-required">
+              <option value="false">No</option>
+              <option value="true">Yes</option>
+            </select>
+            <span class="form-hint" id="ec-photo-hint"></span>
           </div>
         </div>
       </div>
@@ -945,6 +970,10 @@ async function openEditCandidate(id) {
   document.getElementById('ec-phone').value  = d.phone || '';
   document.getElementById('ec-track').value  = d.trackId;
   document.getElementById('ec-active').value = d.isActive ? 'true' : 'false';
+  document.getElementById('ec-photo-required').value = d.isPhotoRequired ? 'true' : 'false';
+  document.getElementById('ec-photo-hint').textContent = d.isPhotoRequired
+    ? (d.hasPhoto ? 'Photo already captured.' : 'Candidate must capture photo before starting.')
+    : '';
   openModal('c-edit-modal');
 }
 

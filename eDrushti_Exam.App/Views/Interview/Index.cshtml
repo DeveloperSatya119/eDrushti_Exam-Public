@@ -4,8 +4,11 @@
     Layout = null; /* full-screen — no shared nav */
     string trackName    = ViewBag.TrackName     ?? "Interview";
     string candidateName = ViewBag.CandidateName ?? "Candidate";
+    bool isPhotoRequired = ViewBag.IsPhotoRequired ?? false;
+    bool hasPhoto = ViewBag.HasPhoto ?? false;
     int    totalQ       = Model.Sum(t => t.Questions.Count);
     var    allQ         = Model.SelectMany(t => t.Questions).ToList();
+    var draftAnswers    = ViewBag.DraftAnswers as Dictionary<int, string> ?? new();
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -272,6 +275,9 @@ html,body { height:100%; overflow:hidden; background:var(--bg); color:var(--text
 .btn-blue:hover   { background:#d0ebff; }
 .btn-green  { background:var(--green2); color:#fff; border-color:var(--green2); }
 .btn-green:hover  { background:#2b8a3e; }
+.save-state{font-size:.72rem;color:var(--muted);align-self:center}
+.save-state.ok{color:var(--green)}
+.save-state.err{color:var(--red)}
 
 /* ══════════════════════════ CONFIRM OVERLAY ════════════════════════════════ */
 .overlay {
@@ -386,6 +392,15 @@ kbd {
 .q-type-mcq       { background:#fff3bf; color:#7c4a00; border:1px solid #ffe066; }
 .q-type-coding    { background:#e8f4fd; color:#1971c2; border:1px solid #a5d8ff; }
 .q-type-short     { background:#ebfbee; color:#2f9e44; border:1px solid #b2f2bb; }
+
+.photo-modal .cfm-box{max-width:680px}
+.photo-stage{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}
+.photo-stage video,.photo-stage canvas{width:100%;aspect-ratio:4/3;background:#111;border:1px solid var(--line2);border-radius:10px;object-fit:cover}
+.photo-consent{display:flex;gap:.6rem;align-items:flex-start;background:#f8f9fa;border:1px solid var(--line);border-radius:8px;padding:.75rem .9rem;font-size:.8rem;color:var(--muted);line-height:1.5}
+.photo-consent input{margin-top:3px;accent-color:var(--blue)}
+.photo-error{display:none;color:var(--red);background:#fff5f5;border:1px solid #ffc9c9;border-radius:7px;padding:.6rem .8rem;font-size:.8rem;margin-top:.75rem}
+.photo-actions{display:flex;gap:.5rem;justify-content:flex-end;flex-wrap:wrap}
+.capture-required-lock .qpanel{filter:blur(2px);pointer-events:none}
 
 @@media(max-width:768px){
   .shell { grid-template-columns:1fr; }
@@ -544,7 +559,13 @@ kbd {
         &nbsp;&middot;&nbsp;
         <b id="f-rem">@totalQ</b> remaining
       </div>
-      <div class="foot-btns">
+  <div class="foot-btns">
+        @if (isPhotoRequired && !hasPhoto)
+        {
+          <button class="btn btn-blue" id="btn-photo-capture" onclick="openPhotoModal()">Capture Photo &amp; Consent</button>
+        }
+        <span class="save-state" id="save-state"></span>
+        <button class="btn btn-blue" onclick="saveProgress()">Save Progress</button>
         <button class="btn btn-ghost" onclick="clearAnswer()">Clear</button>
         <button class="btn btn-blue"  onclick="navigate(1)"   id="btn-next2">Next &rarr;</button>
       </div>
@@ -593,8 +614,44 @@ kbd {
   </div>
 </div>
 
+<!-- ══ PHOTO CONSENT / CAPTURE ═════════════════════════════════════════════ -->
+@if (isPhotoRequired && !hasPhoto)
+{
+  <div class="overlay photo-modal" id="photo-overlay">
+    <div class="cfm-box">
+      <div class="cfm-hdr">
+        <div class="cfm-icon">📷</div>
+        <div>
+          <div class="cfm-title">Photo verification required</div>
+          <div class="cfm-sub">Capture your photo while holding any ID proof before starting the test.</div>
+        </div>
+      </div>
+      <div class="cfm-body">
+        <div class="photo-stage">
+          <video id="photo-video" autoplay playsinline muted></video>
+          <canvas id="photo-canvas"></canvas>
+        </div>
+        <label class="photo-consent">
+          <input type="checkbox" id="photo-consent"/>
+          <span>I agree that my photo with ID proof will be captured and stored for interview verification.</span>
+        </label>
+        <div class="photo-error" id="photo-error"></div>
+      </div>
+      <div class="cfm-foot photo-actions">
+        <button class="btn btn-ghost" id="photo-retake" onclick="retakePhoto()" disabled>Retake</button>
+        <button class="btn btn-blue" onclick="capturePhoto()">Capture</button>
+        <button class="btn btn-green" id="photo-save" onclick="savePhoto()" disabled>Save &amp; Start Test</button>
+      </div>
+    </div>
+  </div>
+}
+
 <script>
 // ── Data ──────────────────────────────────────────────────────────────────────
+const PHOTO_REQUIRED = @(isPhotoRequired.ToString().ToLowerInvariant());
+let PHOTO_SAVED = @(hasPhoto.ToString().ToLowerInvariant());
+let photoStream = null;
+let capturedPhotoDataUrl = '';
 const QUESTIONS = [
   @foreach (var topic in Model)
   {
@@ -604,10 +661,15 @@ const QUESTIONS = [
     }
   }
 ];
+const DRAFT_ANSWERS = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(draftAnswers));
 const TOTAL   = @totalQ;
 const answers = {};
 let   cur     = 0;
 let   saveT   = null;
+
+Object.entries(DRAFT_ANSWERS).forEach(([questionId, value]) => {
+  if (value && value.trim()) answers[Number(questionId)] = value;
+});
 
 // ── Detect question type ──────────────────────────────────────────────────────
 // Returns: 'mcq' | 'coding' | 'text'
@@ -797,6 +859,51 @@ function updateSummary() {
   document.getElementById('f-rem').textContent     = TOTAL - done;
 }
 
+function markAnswered(questionId, hasAnswer) {
+  const nd = document.getElementById(`ndot-${questionId}`);
+  const nr = document.getElementById(`nav-${questionId}`);
+  if (nd) {
+    nd.style.background = hasAnswer ? 'var(--green)' : '';
+    nd.style.borderColor = hasAnswer ? 'var(--green)' : '';
+  }
+  nr?.classList.toggle('done', hasAnswer);
+}
+
+function hydrateDraftState() {
+  Object.entries(answers).forEach(([questionId, value]) => markAnswered(questionId, !!(value && value.trim())));
+  updateSummary();
+}
+
+async function saveProgress() {
+  if (PHOTO_REQUIRED && !PHOTO_SAVED) {
+    openPhotoModal();
+    return;
+  }
+
+  const state = document.getElementById('save-state');
+  state.className = 'save-state';
+  state.textContent = 'Saving...';
+
+  const fd = new FormData();
+  fd.append('__RequestVerificationToken', document.querySelector('input[name=__RequestVerificationToken]').value);
+  QUESTIONS.forEach(q => fd.append(`answers[${q.id}]`, answers[q.id] || ''));
+
+  try {
+    const res = await fetch('/Interview/SaveProgress', { method: 'POST', body: fd });
+    const json = await res.json();
+    if (json.success) {
+      state.className = 'save-state ok';
+      state.textContent = `Saved ${json.savedAt}`;
+    } else {
+      state.className = 'save-state err';
+      state.textContent = json.message || 'Save failed';
+    }
+  } catch (e) {
+    state.className = 'save-state err';
+    state.textContent = 'Network save failed';
+  }
+}
+
 // ── Nav ───────────────────────────────────────────────────────────────────────
 function navigate(d) { render(Math.max(0, Math.min(TOTAL - 1, cur + d))); }
 function jumpTo(id, i) { render(i); }
@@ -836,6 +943,11 @@ const iv = setInterval(tick, 1000);
 
 // ── Confirm / Submit ──────────────────────────────────────────────────────────
 function openConfirm() {
+  if (PHOTO_REQUIRED && !PHOTO_SAVED) {
+    openPhotoModal();
+    return;
+  }
+
   const done = Object.values(answers).filter(v => v && v.trim().length > 0).length;
   document.getElementById('cf-ans').textContent  = done;
   document.getElementById('cf-skip').textContent = TOTAL - done;
@@ -844,6 +956,11 @@ function openConfirm() {
 }
 function closeConfirm() { document.getElementById('overlay').classList.remove('open'); }
 function doSubmit() {
+  if (PHOTO_REQUIRED && !PHOTO_SAVED) {
+    openPhotoModal();
+    return;
+  }
+
   clearInterval(iv);
   QUESTIONS.forEach(q => {
     const el = document.getElementById(`h-${q.id}`);
@@ -861,7 +978,118 @@ document.addEventListener('keydown', e => {
   if (e.altKey && e.key === 'Enter')      openConfirm();
 });
 
+async function openPhotoModal() {
+  if (!PHOTO_REQUIRED || PHOTO_SAVED) return;
+  document.body.classList.add('capture-required-lock');
+  document.getElementById('photo-overlay')?.classList.add('open');
+  await startCamera();
+}
+
+function showPhotoError(message) {
+  const el = document.getElementById('photo-error');
+  if (!el) return;
+  el.textContent = message;
+  el.style.display = 'block';
+}
+
+function clearPhotoError() {
+  const el = document.getElementById('photo-error');
+  if (!el) return;
+  el.textContent = '';
+  el.style.display = 'none';
+}
+
+async function startCamera() {
+  clearPhotoError();
+  const video = document.getElementById('photo-video');
+  if (!video || photoStream) return;
+
+  try {
+    photoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+    video.srcObject = photoStream;
+  } catch (e) {
+    showPhotoError('Camera access is required. Please allow camera permission and try again.');
+  }
+}
+
+function capturePhoto() {
+  clearPhotoError();
+  const video = document.getElementById('photo-video');
+  const canvas = document.getElementById('photo-canvas');
+  if (!video || !canvas || !photoStream) {
+    showPhotoError('Camera is not ready yet.');
+    return;
+  }
+
+  const width = video.videoWidth || 640;
+  const height = video.videoHeight || 480;
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, width, height);
+  capturedPhotoDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+  document.getElementById('photo-save').disabled = false;
+  document.getElementById('photo-retake').disabled = false;
+}
+
+function retakePhoto() {
+  capturedPhotoDataUrl = '';
+  const canvas = document.getElementById('photo-canvas');
+  if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+  document.getElementById('photo-save').disabled = true;
+  clearPhotoError();
+}
+
+async function savePhoto() {
+  clearPhotoError();
+  const consent = document.getElementById('photo-consent')?.checked;
+  if (!consent) {
+    showPhotoError('Please accept the consent checkbox before saving.');
+    return;
+  }
+
+  if (!capturedPhotoDataUrl) {
+    showPhotoError('Please capture a photo before saving.');
+    return;
+  }
+
+  const fd = new FormData();
+  fd.append('__RequestVerificationToken', document.querySelector('input[name=__RequestVerificationToken]').value);
+  fd.append('photoDataUrl', capturedPhotoDataUrl);
+  fd.append('consentAccepted', 'true');
+
+  const btn = document.getElementById('photo-save');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  try {
+    const res = await fetch('/Interview/SavePhoto', { method: 'POST', body: fd });
+    const json = await res.json();
+    if (!json.success) {
+      showPhotoError('Photo could not be saved. Please retake and try again.');
+      btn.disabled = false;
+      btn.textContent = 'Save & Start Test';
+      return;
+    }
+
+    PHOTO_SAVED = true;
+    photoStream?.getTracks().forEach(t => t.stop());
+    photoStream = null;
+    document.body.classList.remove('capture-required-lock');
+    document.getElementById('photo-overlay')?.classList.remove('open');
+    document.getElementById('btn-photo-capture')?.remove();
+  } catch (e) {
+    showPhotoError('Network error while saving photo. Please try again.');
+    btn.disabled = false;
+    btn.textContent = 'Save & Start Test';
+  }
+}
+
 render(0);
+hydrateDraftState();
+if (PHOTO_REQUIRED && !PHOTO_SAVED) {
+  window.addEventListener('load', openPhotoModal);
+}
 </script>
 </body>
 </html>

@@ -10,6 +10,7 @@
         public DateTime? SubmittedAt { get; set; }
         public decimal? ScorePercent { get; set; }
         public string ResultStatus { get; set; } = "Pending";
+        public string? PhotoPath { get; set; }
         public List<CandidateAnswer> Answers { get; set; } = new();
     }
 }

@@ -2,6 +2,7 @@
 using eDrushti_Exam.App.Models;
 using Microsoft.EntityFrameworkCore;
 using System;
+using System.Text.RegularExpressions;
 
 namespace eDrushti_Exam.App.Services
 {
@@ -109,12 +110,124 @@ namespace eDrushti_Exam.App.Services
             candidate.ResultStatus = scorePercent >= PassingPercent ? "Pass" : "Fail";
             candidate.SubmittedAt = submittedAt;
 
+            var drafts = _db.CandidateDraftAnswers.Where(a => a.CandidateId == candidateId);
+            _db.CandidateDraftAnswers.RemoveRange(drafts);
+
+            await _db.SaveChangesAsync();
+        }
+
+        public async Task<Dictionary<int, string>> GetDraftAnswersAsync(int candidateId)
+        {
+            return await _db.CandidateDraftAnswers
+                .Where(a => a.CandidateId == candidateId)
+                .ToDictionaryAsync(a => a.QuestionId, a => a.AnswerText);
+        }
+
+        public async Task SaveDraftAnswersAsync(int candidateId, Dictionary<int, string> answers)
+        {
+            var allowedQuestionIds = await _db.CandidateQuestions
+                .Where(cq => cq.CandidateId == candidateId)
+                .Select(cq => cq.QuestionId)
+                .ToListAsync();
+
+            if (!allowedQuestionIds.Any())
+            {
+                var candidate = await _db.Candidates.FirstOrDefaultAsync(c => c.Id == candidateId);
+                if (candidate == null) return;
+
+                allowedQuestionIds = await _db.Questions
+                    .Where(q => q.Topic != null && q.Topic.TrackId == candidate.TrackId && q.IsActive)
+                    .Select(q => q.Id)
+                    .ToListAsync();
+            }
+
+            var existing = await _db.CandidateDraftAnswers
+                .Where(a => a.CandidateId == candidateId)
+                .ToDictionaryAsync(a => a.QuestionId);
+
+            var now = DateTime.UtcNow;
+            foreach (var (questionId, answerText) in answers)
+            {
+                if (!allowedQuestionIds.Contains(questionId))
+                    continue;
+
+                var normalized = answerText?.Trim() ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(normalized))
+                {
+                    if (existing.TryGetValue(questionId, out var emptyDraft))
+                        _db.CandidateDraftAnswers.Remove(emptyDraft);
+                    continue;
+                }
+
+                if (existing.TryGetValue(questionId, out var draft))
+                {
+                    draft.AnswerText = normalized;
+                    draft.UpdatedAt = now;
+                }
+                else
+                {
+                    _db.CandidateDraftAnswers.Add(new CandidateDraftAnswer
+                    {
+                        CandidateId = candidateId,
+                        QuestionId = questionId,
+                        AnswerText = normalized,
+                        UpdatedAt = now
+                    });
+                }
+            }
+
             await _db.SaveChangesAsync();
         }
 
         public async Task<bool> HasSubmittedAsync(int candidateId)
         {
             return await _db.CandidateAnswers.AnyAsync(a => a.CandidateId == candidateId);
+        }
+
+        public async Task<Candidate?> GetCandidatePhotoStateAsync(int candidateId)
+        {
+            return await _db.Candidates.FirstOrDefaultAsync(c => c.Id == candidateId);
+        }
+
+        public async Task<bool> SaveCandidatePhotoAsync(int candidateId, string photoDataUrl, bool consentAccepted, string webRootPath)
+        {
+            if (!consentAccepted || string.IsNullOrWhiteSpace(photoDataUrl))
+                return false;
+
+            var candidate = await _db.Candidates.FirstOrDefaultAsync(c => c.Id == candidateId);
+            if (candidate == null || !candidate.IsPhotoRequired)
+                return false;
+
+            var match = Regex.Match(photoDataUrl, @"^data:image/(?<type>png|jpeg|jpg);base64,(?<data>.+)$", RegexOptions.IgnoreCase);
+            if (!match.Success)
+                return false;
+
+            byte[] bytes;
+            try
+            {
+                bytes = Convert.FromBase64String(match.Groups["data"].Value);
+            }
+            catch
+            {
+                return false;
+            }
+
+            if (bytes.Length == 0 || bytes.Length > 5 * 1024 * 1024)
+                return false;
+
+            var photosRoot = Path.Combine(webRootPath, "candidate-photos");
+            Directory.CreateDirectory(photosRoot);
+
+            var fileName = $"{candidateId}-{DateTime.UtcNow:yyyyMMddHHmmss}.jpg";
+            var absolutePath = Path.Combine(photosRoot, fileName);
+            await File.WriteAllBytesAsync(absolutePath, bytes);
+
+            candidate.PhotoConsentAccepted = true;
+            candidate.PhotoPath = $"/candidate-photos/{fileName}";
+            candidate.PhotoCapturedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+
+            return true;
         }
     }
 }

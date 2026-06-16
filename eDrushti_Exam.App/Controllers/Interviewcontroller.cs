@@ -9,10 +9,12 @@ namespace eDrushti_Exam.App.Controllers
     public class InterviewController : Controller
     {
         private readonly IInterviewService _interviewService;
+        private readonly IWebHostEnvironment _environment;
 
-        public InterviewController(IInterviewService interviewService)
+        public InterviewController(IInterviewService interviewService, IWebHostEnvironment environment)
         {
             _interviewService = interviewService;
+            _environment = environment;
         }
 
         public async Task<IActionResult> Index()
@@ -27,8 +29,36 @@ namespace eDrushti_Exam.App.Controllers
 
             ViewBag.CandidateName = User.Identity?.Name;
             ViewBag.TrackName = User.FindFirst("TrackName")?.Value ?? "Interview";
+            var candidate = await _interviewService.GetCandidatePhotoStateAsync(candidateId);
+            ViewBag.IsPhotoRequired = candidate?.IsPhotoRequired ?? false;
+            ViewBag.HasPhoto = !string.IsNullOrWhiteSpace(candidate?.PhotoPath);
+            ViewBag.PhotoConsentAccepted = candidate?.PhotoConsentAccepted ?? false;
+            ViewBag.DraftAnswers = await _interviewService.GetDraftAnswersAsync(candidateId);
 
             return View(topics);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SavePhoto([FromForm] string photoDataUrl, [FromForm] bool consentAccepted)
+        {
+            var candidateId = GetCandidateId();
+            var webRoot = _environment.WebRootPath ?? Path.Combine(_environment.ContentRootPath, "wwwroot");
+            var saved = await _interviewService.SaveCandidatePhotoAsync(candidateId, photoDataUrl, consentAccepted, webRoot);
+            return Json(new { success = saved });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SaveProgress(Dictionary<int, string> answers)
+        {
+            var candidateId = GetCandidateId();
+
+            if (await _interviewService.HasSubmittedAsync(candidateId))
+                return Json(new { success = false, message = "Test already submitted." });
+
+            await _interviewService.SaveDraftAnswersAsync(candidateId, answers);
+            return Json(new { success = true, savedAt = DateTime.Now.ToString("HH:mm") });
         }
 
         [HttpPost]

@@ -13,6 +13,7 @@ namespace eDrushti_Exam.App.Data
         public DbSet<Candidate> Candidates { get; set; }
         public DbSet<CandidateAnswer> CandidateAnswers { get; set; }
         public DbSet<CandidateQuestion> CandidateQuestions { get; set; }
+        public DbSet<CandidateDraftAnswer> CandidateDraftAnswers { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -60,6 +61,7 @@ namespace eDrushti_Exam.App.Data
                 e.Property(c => c.Phone).HasMaxLength(20);
                 e.Property(c => c.ScorePercent).HasColumnType("decimal(5,2)");
                 e.Property(c => c.ResultStatus).HasMaxLength(20);
+                e.Property(c => c.PhotoPath).HasMaxLength(500);
                 e.HasOne(c => c.Track)
                  .WithMany(t => t.Candidates)
                  .HasForeignKey(c => c.TrackId)
@@ -91,6 +93,20 @@ namespace eDrushti_Exam.App.Data
                 e.HasOne(cq => cq.Question)
                  .WithMany(q => q.CandidateQuestions)
                  .HasForeignKey(cq => cq.QuestionId)
+                 .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<CandidateDraftAnswer>(e =>
+            {
+                e.HasKey(a => new { a.CandidateId, a.QuestionId });
+                e.Property(a => a.AnswerText).HasMaxLength(3000).IsRequired();
+                e.HasOne(a => a.Candidate)
+                 .WithMany(c => c.DraftAnswers)
+                 .HasForeignKey(a => a.CandidateId)
+                 .OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(a => a.Question)
+                 .WithMany()
+                 .HasForeignKey(a => a.QuestionId)
                  .OnDelete(DeleteBehavior.Cascade);
             });
         }

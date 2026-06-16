@@ -8,6 +8,8 @@ namespace eDrushti_Exam.App.Services
     {
         private const string AdminTrackSlug = "admin";
         private const int RandomQuestionsPerCandidate = 20;
+        private const int MinimumDotNetQuestionsPerCandidate = 6;
+        private const string DotNetTopicName = ".NET Core and C#";
 
         private readonly AppDbContext _db;
 
@@ -71,7 +73,8 @@ namespace eDrushti_Exam.App.Services
                 Phone = vm.Phone?.Trim(),
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(vm.Password!),
                 TrackId = vm.TrackId,
-                IsActive = vm.IsActive
+                IsActive = vm.IsActive,
+                IsPhotoRequired = vm.IsPhotoRequired
             };
             _db.Candidates.Add(candidate);
             await _db.SaveChangesAsync();
@@ -89,6 +92,14 @@ namespace eDrushti_Exam.App.Services
             c.Phone = vm.Phone?.Trim();
             c.TrackId = vm.TrackId;
             c.IsActive = vm.IsActive;
+            c.IsPhotoRequired = vm.IsPhotoRequired;
+
+            if (!c.IsPhotoRequired)
+            {
+                c.PhotoConsentAccepted = false;
+                c.PhotoPath = null;
+                c.PhotoCapturedAt = null;
+            }
 
             if (!string.IsNullOrWhiteSpace(vm.Password))
                 c.PasswordHash = BCrypt.Net.BCrypt.HashPassword(vm.Password);
@@ -146,12 +157,30 @@ namespace eDrushti_Exam.App.Services
 
         private async Task AssignRandomQuestionsAsync(int candidateId, int trackId)
         {
-            var questionIds = await VisibleQuestions()
-                .Where(q => q.IsActive && q.Topic!.TrackId == trackId && q.QuestionType == "MCQ")
+            var dotNetQuestionIds = await VisibleQuestions()
+                .Where(q => q.IsActive
+                    && q.Topic!.TrackId == trackId
+                    && q.QuestionType == "MCQ"
+                    && q.Topic.Name == DotNetTopicName)
                 .OrderBy(q => Guid.NewGuid())
-                .Take(RandomQuestionsPerCandidate)
+                .Take(MinimumDotNetQuestionsPerCandidate)
                 .Select(q => q.Id)
                 .ToListAsync();
+
+            var remainingSlots = RandomQuestionsPerCandidate - dotNetQuestionIds.Count;
+            var remainingQuestionIds = await VisibleQuestions()
+                .Where(q => q.IsActive
+                    && q.Topic!.TrackId == trackId
+                    && q.QuestionType == "MCQ"
+                    && !dotNetQuestionIds.Contains(q.Id))
+                .OrderBy(q => Guid.NewGuid())
+                .Take(remainingSlots)
+                .Select(q => q.Id)
+                .ToListAsync();
+
+            var questionIds = dotNetQuestionIds.Concat(remainingQuestionIds)
+                .OrderBy(_ => Guid.NewGuid())
+                .ToList();
 
             var order = 1;
             foreach (var questionId in questionIds)
@@ -273,6 +302,7 @@ namespace eDrushti_Exam.App.Services
                 SubmittedAt = candidate.SubmittedAt ?? (answers.Any() ? answers.Max(a => a.SubmittedAt) : null),
                 ScorePercent = candidate.ScorePercent,
                 ResultStatus = candidate.ResultStatus ?? "Pending",
+                PhotoPath = candidate.PhotoPath,
                 Answers = answers
             };
         }

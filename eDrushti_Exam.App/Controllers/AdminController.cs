@@ -10,10 +10,12 @@ namespace eDrushti_Exam.App.Controllers
     public class AdminController : Controller
     {
         private readonly IAdminService _adminService;
+        private readonly IWebHostEnvironment _environment;
 
-        public AdminController(IAdminService adminService)
+        public AdminController(IAdminService adminService, IWebHostEnvironment environment)
         {
             _adminService = adminService;
+            _environment = environment;
         }
 
         [HttpGet("/Admin/Dashboard")]
@@ -120,7 +122,9 @@ namespace eDrushti_Exam.App.Controllers
                 c.Email,
                 c.Phone,
                 c.TrackId,
-                c.IsActive
+                c.IsActive,
+                c.IsPhotoRequired,
+                hasPhoto = !string.IsNullOrWhiteSpace(c.PhotoPath)
             });
         }
 
@@ -240,17 +244,18 @@ namespace eDrushti_Exam.App.Controllers
             var detail = await _adminService.GetCandidateResultAsync(candidateId);
             if (detail == null) return NotFound();
 
-            var pdf = BuildResultPdf(detail);
+            var webRoot = _environment.WebRootPath ?? Path.Combine(_environment.ContentRootPath, "wwwroot");
+            var pdf = BuildResultPdf(detail, webRoot);
             var safeName = string.Join("-", detail.FullName.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Replace(" ", "-");
             return File(pdf, "application/pdf", $"answer-sheet-{safeName}-{candidateId}.pdf");
         }
 
-        private static byte[] BuildResultPdf(CandidateResultDetailViewModel detail)
+        private static byte[] BuildResultPdf(CandidateResultDetailViewModel detail, string webRoot)
         {
-            return StyledPdf(detail);
+            return StyledPdf(detail, webRoot);
         }
 
-        private static byte[] StyledPdf(CandidateResultDetailViewModel detail)
+        private static byte[] StyledPdf(CandidateResultDetailViewModel detail, string webRoot)
         {
             var objects = new List<string>();
             var pages = new List<int>();
@@ -259,11 +264,19 @@ namespace eDrushti_Exam.App.Controllers
                 .ThenBy(a => a.Question?.OrderIndex)
                 .ToList();
             const int rowsPerPage = 6;
+            var photo = TryLoadPdfPhoto(detail.PhotoPath, webRoot);
 
             objects.Add("<< /Type /Catalog /Pages 2 0 R >>");
             objects.Add("PAGES");
             objects.Add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
             objects.Add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>");
+
+            int? photoObjectNumber = null;
+            if (photo != null)
+            {
+                objects.Add(BuildPhotoObject(photo.Value.Bytes, photo.Value.Width, photo.Value.Height));
+                photoObjectNumber = objects.Count;
+            }
 
             for (var pageStart = 0; pageStart < Math.Max(rows.Count, 1); pageStart += rowsPerPage)
             {
@@ -278,14 +291,29 @@ namespace eDrushti_Exam.App.Controllers
                 Rect(content, 470, 798, 92, 26, passed ? "0.18 0.62 0.28" : "0.79 0.16 0.16");
                 Text(content, $"{detail.ResultStatus} {detail.ScorePercent?.ToString("0.##") ?? "0"}%", 486, 807, 11, true, "1 1 1");
 
-                Rect(content, 36, 708, 540, 64, "0.94 0.97 1");
-                StrokeRect(content, 36, 708, 540, 64, "0.65 0.78 0.90");
+                Rect(content, 36, 708, 420, 64, "0.94 0.97 1");
+                StrokeRect(content, 36, 708, 420, 64, "0.65 0.78 0.90");
                 Text(content, "Candidate", 52, 750, 9, true, "0.28 0.34 0.40");
                 Text(content, detail.FullName, 52, 732, 13, true, "0.08 0.10 0.13");
-                Text(content, "Track", 270, 750, 9, true, "0.28 0.34 0.40");
-                Text(content, detail.TrackName, 270, 732, 11, true, "0.08 0.10 0.13");
-                Text(content, "Submitted", 430, 750, 9, true, "0.28 0.34 0.40");
-                Text(content, detail.SubmittedAt?.ToString("dd MMM yyyy, HH:mm") ?? "-", 430, 732, 10, false, "0.08 0.10 0.13");
+                Text(content, "Track", 240, 750, 9, true, "0.28 0.34 0.40");
+                Text(content, detail.TrackName, 240, 732, 11, true, "0.08 0.10 0.13");
+                Text(content, "Submitted", 52, 716, 9, true, "0.28 0.34 0.40");
+                Text(content, detail.SubmittedAt?.ToString("dd MMM yyyy, HH:mm") ?? "-", 122, 716, 10, false, "0.08 0.10 0.13");
+
+                if (photoObjectNumber.HasValue && pageStart == 0)
+                {
+                    StrokeRect(content, 470, 708, 92, 64, "0.65 0.78 0.90");
+                    content.AppendLine("q");
+                    content.AppendLine("92 0 0 64 470 708 cm");
+                    content.AppendLine("/Photo Do");
+                    content.AppendLine("Q");
+                    Text(content, "Captured verification photo", 464, 696, 7, false, "0.28 0.34 0.40");
+                }
+                else if (pageStart == 0)
+                {
+                    StrokeRect(content, 470, 708, 92, 64, "0.82 0.86 0.90");
+                    Text(content, "No photo", 496, 738, 10, true, "0.45 0.50 0.55");
+                }
 
                 var y = 672;
                 if (!pageRows.Any())
@@ -323,7 +351,8 @@ namespace eDrushti_Exam.App.Controllers
                 objects.Add(contentObject);
                 var contentObjectNumber = objects.Count;
 
-                objects.Add($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents {contentObjectNumber} 0 R >>");
+                var xObject = photoObjectNumber.HasValue ? $" /XObject << /Photo {photoObjectNumber.Value} 0 R >>" : "";
+                objects.Add($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >>{xObject} >> /Contents {contentObjectNumber} 0 R >>");
                 pages.Add(objects.Count);
             }
 
@@ -398,5 +427,45 @@ namespace eDrushti_Exam.App.Controllers
 
         private static string ToPdfAscii(string value)
             => Encoding.ASCII.GetString(Encoding.ASCII.GetBytes(value));
+
+        private static (byte[] Bytes, int Width, int Height)? TryLoadPdfPhoto(string? photoPath, string webRoot)
+        {
+            if (string.IsNullOrWhiteSpace(photoPath))
+                return null;
+
+            var relative = photoPath.TrimStart('/', '\\').Replace('/', Path.DirectorySeparatorChar);
+            var path = Path.Combine(webRoot, relative);
+            if (!System.IO.File.Exists(path))
+                return null;
+
+            var bytes = System.IO.File.ReadAllBytes(path);
+            var size = TryGetJpegSize(bytes);
+            return size == null ? null : (bytes, size.Value.Width, size.Value.Height);
+        }
+
+        private static (int Width, int Height)? TryGetJpegSize(byte[] bytes)
+        {
+            for (var i = 2; i < bytes.Length - 9; i++)
+            {
+                if (bytes[i] != 0xFF)
+                    continue;
+
+                var marker = bytes[i + 1];
+                if (marker is 0xC0 or 0xC1 or 0xC2 or 0xC3)
+                {
+                    var height = (bytes[i + 5] << 8) + bytes[i + 6];
+                    var width = (bytes[i + 7] << 8) + bytes[i + 8];
+                    return (width, height);
+                }
+            }
+
+            return null;
+        }
+
+        private static string BuildPhotoObject(byte[] bytes, int width, int height)
+        {
+            var hex = Convert.ToHexString(bytes) + ">";
+            return $"<< /Type /XObject /Subtype /Image /Width {width} /Height {height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter [/ASCIIHexDecode /DCTDecode] /Length {hex.Length} >>\nstream\n{hex}\nendstream";
+        }
     }
 }

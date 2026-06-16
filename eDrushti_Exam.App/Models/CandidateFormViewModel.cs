@@ -28,6 +28,7 @@ namespace eDrushti_Exam.App.Models
         public int TrackId { get; set; }
 
         public bool IsActive { get; set; } = true;
+        public bool IsPhotoRequired { get; set; } = false;
 
         // Read-only — populated when loading edit form, not posted back
         public string? TrackName { get; set; }
