@@ -9,5 +9,7 @@
         public string TrackSlug { get; set; } = string.Empty;
         public int TotalAnswers { get; set; }
         public DateTime SubmittedAt { get; set; }
+        public decimal? ScorePercent { get; set; }
+        public string ResultStatus { get; set; } = "Pending";
     }
 }

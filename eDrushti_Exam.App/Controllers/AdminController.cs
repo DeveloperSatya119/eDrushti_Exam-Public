@@ -2,6 +2,7 @@
 using eDrushti_Exam.App.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Text;
 
 namespace eDrushti_Exam.App.Controllers
 {
@@ -9,12 +10,10 @@ namespace eDrushti_Exam.App.Controllers
     public class AdminController : Controller
     {
         private readonly IAdminService _adminService;
-        private readonly IEmailService _emailService;
 
-        public AdminController(IAdminService adminService, IEmailService emailService)
+        public AdminController(IAdminService adminService)
         {
             _adminService = adminService;
-            _emailService = emailService;
         }
 
         [HttpGet("/Admin/Dashboard")]
@@ -213,9 +212,10 @@ namespace eDrushti_Exam.App.Controllers
             {
                 detail.CandidateId,
                 detail.FullName,
-                detail.Email,
                 detail.TrackName,
                 detail.TrackSlug,
+                ScorePercent = detail.ScorePercent?.ToString("0.##") ?? "0",
+                detail.ResultStatus,
                 TotalAnswers = detail.Answers.Count,
                 SubmittedAt = detail.SubmittedAt?.ToString("dd MMM yyyy, HH:mm"),
                 Answers = detail.Answers
@@ -225,61 +225,178 @@ namespace eDrushti_Exam.App.Controllers
                     {
                         QuestionText = a.Question?.QuestionText ?? "—",
                         a.AnswerText,
+                        QuestionType = a.Question?.QuestionType ?? "Text",
+                        CorrectAnswer = a.Question?.CorrectAnswer ?? "",
+                        a.IsCorrect,
                         TopicName = a.Question?.Topic?.Name ?? "—",
                         OrderIndex = a.Question?.OrderIndex ?? 0
                     })
             });
         }
-        // POST /Admin/SendDecisionEmail
-        [HttpPost("/Admin/SendDecisionEmail")]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> SendDecisionEmail(int candidateId, string decision)
+
+        [HttpGet("/Admin/Results/{candidateId}/Pdf")]
+        public async Task<IActionResult> ResultPdf(int candidateId)
         {
-            try
-            {
-                if (string.IsNullOrWhiteSpace(decision))
-                    return Json(new { success = false, error = "Decision is required." });
+            var detail = await _adminService.GetCandidateResultAsync(candidateId);
+            if (detail == null) return NotFound();
 
-                var candidate = await _adminService.GetCandidateByIdAsync(candidateId);
-                if (candidate == null)
-                    return Json(new { success = false, error = "Candidate not found." });
-
-                bool isPass = decision.Trim().ToLower() == "pass";
-                string trackName = candidate.Track?.Name ?? "Technical";
-
-                string subject = isPass
-                    ? $"Congratulations — You Passed the {trackName} Interview"
-                    : $"Interview Result — {trackName} Position";
-
-                string body = isPass
-                    ? $@"Dear {candidate.FullName},
-
-                        We are pleased to inform you that you have successfully passed the {trackName} technical interview conducted on the eDrushti Exam Platform.
-
-                        Our team was impressed with your responses. We will be in touch shortly regarding the next steps in the hiring process.
-
-                        Congratulations and best of luck ahead!
-
-                        Warm regards,
-                        eDrushti Recruitment Team"
-                                            : $@"Dear {candidate.FullName},
-
-                        Thank you for taking the time to attempt the {trackName} technical interview on the eDrushti Exam Platform.
-
-                        After a careful review of your responses, we regret to inform you that we will not be moving forward with your application at this time.
-
-                        We appreciate your interest and encourage you to continue building your skills. You are welcome to apply again in the future.
-
-                        Best regards,
-                        eDrushti Recruitment Team";
-
-                await _emailService.SendAsync(candidate.Email, subject, body);
-                return Json(new { success = true });
-            }
-            catch (Exception ex)
-            {
-                return Json(new { success = false, error = ex.Message });
-            }
+            var pdf = BuildResultPdf(detail);
+            var safeName = string.Join("-", detail.FullName.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Replace(" ", "-");
+            return File(pdf, "application/pdf", $"answer-sheet-{safeName}-{candidateId}.pdf");
         }
+
+        private static byte[] BuildResultPdf(CandidateResultDetailViewModel detail)
+        {
+            return StyledPdf(detail);
+        }
+
+        private static byte[] StyledPdf(CandidateResultDetailViewModel detail)
+        {
+            var objects = new List<string>();
+            var pages = new List<int>();
+            var rows = detail.Answers
+                .OrderBy(a => a.Question?.Topic?.SortOrder)
+                .ThenBy(a => a.Question?.OrderIndex)
+                .ToList();
+            const int rowsPerPage = 6;
+
+            objects.Add("<< /Type /Catalog /Pages 2 0 R >>");
+            objects.Add("PAGES");
+            objects.Add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+            objects.Add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>");
+
+            for (var pageStart = 0; pageStart < Math.Max(rows.Count, 1); pageStart += rowsPerPage)
+            {
+                var pageRows = rows.Skip(pageStart).Take(rowsPerPage).ToList();
+                var content = new StringBuilder();
+
+                Rect(content, 0, 792, 612, 50, "0.10 0.32 0.56");
+                Text(content, "eDrushti Exam", 36, 810, 18, true, "1 1 1");
+                Text(content, "Candidate Answer Sheet", 36, 794, 10, false, "0.85 0.93 1");
+
+                var passed = string.Equals(detail.ResultStatus, "Pass", StringComparison.OrdinalIgnoreCase);
+                Rect(content, 470, 798, 92, 26, passed ? "0.18 0.62 0.28" : "0.79 0.16 0.16");
+                Text(content, $"{detail.ResultStatus} {detail.ScorePercent?.ToString("0.##") ?? "0"}%", 486, 807, 11, true, "1 1 1");
+
+                Rect(content, 36, 708, 540, 64, "0.94 0.97 1");
+                StrokeRect(content, 36, 708, 540, 64, "0.65 0.78 0.90");
+                Text(content, "Candidate", 52, 750, 9, true, "0.28 0.34 0.40");
+                Text(content, detail.FullName, 52, 732, 13, true, "0.08 0.10 0.13");
+                Text(content, "Track", 270, 750, 9, true, "0.28 0.34 0.40");
+                Text(content, detail.TrackName, 270, 732, 11, true, "0.08 0.10 0.13");
+                Text(content, "Submitted", 430, 750, 9, true, "0.28 0.34 0.40");
+                Text(content, detail.SubmittedAt?.ToString("dd MMM yyyy, HH:mm") ?? "-", 430, 732, 10, false, "0.08 0.10 0.13");
+
+                var y = 672;
+                if (!pageRows.Any())
+                {
+                    Text(content, "No submitted answers found.", 52, y, 12, false, "0.40 0.45 0.50");
+                }
+
+                for (var i = 0; i < pageRows.Count; i++)
+                {
+                    var answer = pageRows[i];
+                    var qNo = pageStart + i + 1;
+                    var top = y - (i * 98);
+
+                    Rect(content, 36, top - 74, 540, 86, "1 1 1");
+                    StrokeRect(content, 36, top - 74, 540, 86, "0.82 0.86 0.90");
+                    Rect(content, 36, top - 8, 540, 20, "0.93 0.95 0.98");
+                    Text(content, $"Q{qNo}. {answer.Question?.Topic?.Name ?? "General"}", 48, top - 1, 9, true, "0.10 0.32 0.56");
+
+                    var questionText = answer.Question?.QuestionText ?? "-";
+                    WriteWrapped(content, questionText, 48, top - 22, 92, 8, true, "0.08 0.10 0.13", 2);
+                    Text(content, $"Answer: {answer.AnswerText}", 48, top - 50, 9, false, "0.20 0.24 0.28");
+
+                    if (string.Equals(answer.Question?.QuestionType, "MCQ", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var statusColor = answer.IsCorrect == true ? "0.18 0.62 0.28" : "0.79 0.16 0.16";
+                        Text(content, $"Correct: {answer.Question?.CorrectAnswer ?? "-"}", 330, top - 50, 9, false, "0.20 0.24 0.28");
+                        Text(content, answer.IsCorrect == true ? "Correct" : "Incorrect", 468, top - 50, 9, true, statusColor);
+                    }
+                }
+
+                Text(content, $"Page {(pageStart / rowsPerPage) + 1}", 520, 28, 8, false, "0.45 0.50 0.55");
+
+                var contentBytes = Encoding.ASCII.GetBytes(content.ToString());
+                var contentObject = $"<< /Length {contentBytes.Length} >>\nstream\n{content}endstream";
+                objects.Add(contentObject);
+                var contentObjectNumber = objects.Count;
+
+                objects.Add($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents {contentObjectNumber} 0 R >>");
+                pages.Add(objects.Count);
+            }
+
+            objects[1] = $"<< /Type /Pages /Kids [{string.Join(" ", pages.Select(p => $"{p} 0 R"))}] /Count {pages.Count} >>";
+
+            var output = new StringBuilder();
+            var offsets = new List<int> { 0 };
+            output.AppendLine("%PDF-1.4");
+
+            for (var index = 0; index < objects.Count; index++)
+            {
+                offsets.Add(Encoding.ASCII.GetByteCount(output.ToString()));
+                output.AppendLine($"{index + 1} 0 obj");
+                output.AppendLine(objects[index]);
+                output.AppendLine("endobj");
+            }
+
+            var xrefOffset = Encoding.ASCII.GetByteCount(output.ToString());
+            output.AppendLine("xref");
+            output.AppendLine($"0 {objects.Count + 1}");
+            output.AppendLine("0000000000 65535 f ");
+            for (var i = 1; i < offsets.Count; i++)
+                output.AppendLine($"{offsets[i]:D10} 00000 n ");
+
+            output.AppendLine("trailer");
+            output.AppendLine($"<< /Size {objects.Count + 1} /Root 1 0 R >>");
+            output.AppendLine("startxref");
+            output.AppendLine(xrefOffset.ToString());
+            output.AppendLine("%%EOF");
+
+            return Encoding.ASCII.GetBytes(output.ToString());
+        }
+
+        private static void Rect(StringBuilder content, int x, int y, int width, int height, string rgb)
+        {
+            content.AppendLine($"{rgb} rg");
+            content.AppendLine($"{x} {y} {width} {height} re f");
+        }
+
+        private static void StrokeRect(StringBuilder content, int x, int y, int width, int height, string rgb)
+        {
+            content.AppendLine($"{rgb} RG");
+            content.AppendLine($"{x} {y} {width} {height} re S");
+        }
+
+        private static void Text(StringBuilder content, string text, int x, int y, int size, bool bold, string rgb)
+        {
+            content.AppendLine("BT");
+            content.AppendLine($"{rgb} rg");
+            content.AppendLine($"/{(bold ? "F2" : "F1")} {size} Tf");
+            content.AppendLine($"{x} {y} Td");
+            content.AppendLine($"({EscapePdf(ToPdfAscii(text))}) Tj");
+            content.AppendLine("ET");
+        }
+
+        private static void WriteWrapped(StringBuilder content, string text, int x, int y, int width, int size, bool bold, string rgb, int maxLines)
+        {
+            var lines = Wrap(ToPdfAscii(text), width).Take(maxLines).ToList();
+            for (var i = 0; i < lines.Count; i++)
+                Text(content, lines[i], x, y - (i * (size + 4)), size, bold, rgb);
+        }
+
+        private static IEnumerable<string> Wrap(string value, int width)
+        {
+            value = value.Replace("\r", " ").Replace("\n", " ");
+            for (var i = 0; i < value.Length; i += width)
+                yield return value.Substring(i, Math.Min(width, value.Length - i));
+        }
+
+        private static string EscapePdf(string value)
+            => value.Replace("\\", "\\\\").Replace("(", "\\(").Replace(")", "\\)");
+
+        private static string ToPdfAscii(string value)
+            => Encoding.ASCII.GetString(Encoding.ASCII.GetBytes(value));
     }
 }

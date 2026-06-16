@@ -8,6 +8,8 @@
         public string TrackName { get; set; } = string.Empty;
         public string TrackSlug { get; set; } = string.Empty;
         public DateTime? SubmittedAt { get; set; }
+        public decimal? ScorePercent { get; set; }
+        public string ResultStatus { get; set; } = "Pending";
         public List<CandidateAnswer> Answers { get; set; } = new();
     }
 }

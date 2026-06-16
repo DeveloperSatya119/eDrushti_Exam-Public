@@ -187,8 +187,6 @@ select.form-control{cursor:pointer}
 .qcheck-filter input{width:100%;border:1px solid var(--border);border-radius:5px;padding:.35rem .65rem;font-size:.78rem;outline:none;font-family:var(--font)}
 .qcheck-filter input:focus{border-color:var(--blue)}
 
-.email-sent{font-size:.68rem;color:var(--green);background:var(--green-bg);border:1px solid var(--green-bd);border-radius:99px;padding:2px 8px;display:inline-flex;align-items:center;gap:.25rem}
-
 /* ── TOAST ──────────────────────────────────────────────────────────────── */
 #app-toast{
   position:fixed;bottom:1.75rem;right:1.75rem;z-index:9999;
@@ -313,7 +311,7 @@ select.form-control{cursor:pointer}
         <div class="quick-card" onclick="showSection('results',document.querySelectorAll('.nav-item')[4])">
           <div class="quick-card-icon">📊</div>
           <div class="quick-card-title">View Results</div>
-          <div class="quick-card-desc">Review answers and send pass/fail emails</div>
+          <div class="quick-card-desc">Review answers, scores, and final status</div>
         </div>
       </div>
 
@@ -324,13 +322,12 @@ select.form-control{cursor:pointer}
         </div>
         <div class="card-body-np table-wrap">
           <table>
-            <thead><tr><th>Name</th><th>Email</th><th>Track</th><th>Status</th><th>Submitted</th><th>Added</th></tr></thead>
+            <thead><tr><th>Name</th><th>Track</th><th>Status</th><th>Submitted</th><th>Added</th></tr></thead>
             <tbody>
               @foreach (var c in Model.RecentCandidates)
               {
                 <tr>
                   <td style="font-weight:500">@c.FullName</td>
-                  <td style="color:var(--muted)">@c.Email</td>
                   <td><span class="badge badge-@(c.Track?.Slug??"")">@(c.Track?.Name??"—")</span></td>
                   <td><span class="badge @(c.IsActive?"badge-active":"badge-off")">@(c.IsActive?"Active":"Inactive")</span></td>
                   <td>@Html.Raw(c.Answers.Any()?"<span class='badge badge-active'>Yes</span>":"<span class='badge badge-pending'>Pending</span>")</td>
@@ -351,7 +348,7 @@ select.form-control{cursor:pointer}
       </div>
       <div class="card">
         <div class="filter-bar">
-          <input id="c-search" class="form-control" style="max-width:240px;padding:.38rem .75rem;font-size:.78rem" placeholder="Search name or email…" oninput="filterCands()"/>
+          <input id="c-search" class="form-control" style="max-width:240px;padding:.38rem .75rem;font-size:.78rem" placeholder="Search name…" oninput="filterCands()"/>
           <select id="c-track-f" class="form-control" style="max-width:140px;padding:.38rem .65rem;font-size:.78rem" onchange="filterCands()">
             <option value="">All tracks</option>
             @foreach (var t in tracks) { <option value="@t.Slug">@t.Name</option> }
@@ -365,16 +362,15 @@ select.form-control{cursor:pointer}
         </div>
         <div class="card-body-np table-wrap">
           <table id="c-table">
-            <thead><tr><th>#</th><th>Name</th><th>Email</th><th>Phone</th><th>Track</th><th>Status</th><th>Submitted</th><th>Added</th><th>Actions</th></tr></thead>
+            <thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Track</th><th>Status</th><th>Submitted</th><th>Added</th><th>Actions</th></tr></thead>
             <tbody>
               @{ int ci=1; }
               @foreach (var c in allCands)
               {
                 var slug = c.Track?.Slug ?? "";
-                <tr data-name="@c.FullName.ToLower()" data-email="@c.Email.ToLower()" data-track="@slug" data-status="@(c.IsActive?"active":"inactive")">
+                <tr data-name="@c.FullName.ToLower()" data-track="@slug" data-status="@(c.IsActive?"active":"inactive")">
                   <td style="color:var(--dim);font-size:.72rem">@(ci++)</td>
                   <td style="font-weight:600">@c.FullName</td>
-                  <td style="color:var(--muted)">@c.Email</td>
                   <td style="color:var(--muted)">@(c.Phone??"—")</td>
                   <td><span class="badge badge-@slug">@(c.Track?.Name??"—")</span></td>
                   <td><span class="badge @(c.IsActive?"badge-active":"badge-off")">@(c.IsActive?"Active":"Inactive")</span></td>
@@ -454,7 +450,7 @@ select.form-control{cursor:pointer}
     <!-- ════════ RESULTS ════════ -->
     <div class="section" id="section-results">
       <div class="page-head">
-        <div><h1>Candidate Results</h1><p>Review submitted answers and send pass/fail decisions</p></div>
+        <div><h1>Candidate Results</h1><p>Review submitted answers, scores, and final status</p></div>
       </div>
       <div class="card">
         <div class="filter-bar">
@@ -467,24 +463,23 @@ select.form-control{cursor:pointer}
         </div>
         <div class="card-body-np table-wrap">
           <table id="r-table">
-            <thead><tr><th>#</th><th>Candidate</th><th>Email</th><th>Track</th><th>Answers</th><th>Submitted</th><th>Decision</th><th>Actions</th></tr></thead>
+            <thead><tr><th>#</th><th>Candidate</th><th>Track</th><th>Answers</th><th>Score</th><th>Submitted</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               @{ int ri=1; }
               @foreach (var r in results)
               {
-                <tr data-name="@r.FullName.ToLower()" data-email="@r.Email.ToLower()" data-track="@r.TrackSlug">
+                <tr data-name="@r.FullName.ToLower()" data-track="@r.TrackSlug">
                   <td style="color:var(--dim);font-size:.72rem">@(ri++)</td>
                   <td style="font-weight:600">@r.FullName</td>
-                  <td style="color:var(--muted)">@r.Email</td>
                   <td><span class="badge badge-@r.TrackSlug">@r.TrackName</span></td>
                   <td style="font-weight:700;color:var(--blue)">@r.TotalAnswers</td>
+                  <td style="font-weight:700;color:@(r.ResultStatus == "Pass" ? "var(--green)" : "var(--red)")">@(r.ScorePercent?.ToString("0.##") ?? "0")%</td>
                   <td style="color:var(--muted);font-size:.72rem;white-space:nowrap">@r.SubmittedAt.ToString("dd MMM yyyy, HH:mm")</td>
-                  <td id="decision-@r.CandidateId"><span class="badge badge-pending">Pending</span></td>
+                  <td id="decision-@r.CandidateId"><span class="badge badge-@(r.ResultStatus == "Pass" ? "pass" : "fail")">@r.ResultStatus</span></td>
                   <td>
                     <div style="display:flex;gap:.3rem;flex-wrap:wrap">
                       <button class="btn btn-info btn-xs"    onclick="openResultModal(@r.CandidateId)">View Answers</button>
-                      <button class="btn btn-green btn-xs"   onclick="sendDecision(@r.CandidateId,'@Html.Raw(r.FullName.Replace("'","\\'"))','@r.Email','pass')">✓ Pass</button>
-                      <button class="btn btn-danger btn-xs"  onclick="sendDecision(@r.CandidateId,'@Html.Raw(r.FullName.Replace("'","\\'"))','@r.Email','fail')">✗ Fail</button>
+                      <a class="btn btn-secondary btn-xs" href="/Admin/Results/@r.CandidateId/Pdf">PDF</a>
                     </div>
                   </td>
                 </tr>
@@ -824,23 +819,6 @@ select.form-control{cursor:pointer}
   </div>
 </div>
 
-<!-- ════════════════ MODAL: SEND EMAIL ════════════════ -->
-<div class="overlay" id="email-modal">
-  <div class="modal modal-sm">
-    <div class="modal-hdr">
-      <span class="modal-title" id="email-modal-title">Send Decision Email</span>
-      <button class="modal-close" onclick="closeModal('email-modal')">✕</button>
-    </div>
-    <div class="modal-body">
-      <p style="font-size:.85rem;color:var(--muted);line-height:1.65" id="email-confirm-text"></p>
-    </div>
-    <div class="modal-foot">
-      <button class="btn btn-secondary" onclick="closeModal('email-modal')">Cancel</button>
-      <button class="btn btn-primary" id="email-confirm-btn">Send Email</button>
-    </div>
-  </div>
-</div>
-
 <!-- ════════════════ TOAST ════════════════ -->
 <div id="app-toast"></div>
 
@@ -916,7 +894,7 @@ function filterCands() {
   const sts = document.getElementById('c-status-f').value;
   let v = 0;
   document.querySelectorAll('#c-table tbody tr').forEach(r => {
-    const ok = (!txt || (r.dataset.name + r.dataset.email).includes(txt)) && (!trk || r.dataset.track === trk) && (!sts || r.dataset.status === sts);
+    const ok = (!txt || r.dataset.name.includes(txt)) && (!trk || r.dataset.track === trk) && (!sts || r.dataset.status === sts);
     r.style.display = ok ? '' : 'none'; if (ok) v++;
   });
   document.getElementById('c-count').textContent = v + ' shown';
@@ -937,7 +915,7 @@ function filterR() {
   const trk = document.getElementById('r-track-f').value;
   let v = 0;
   document.querySelectorAll('#r-table tbody tr').forEach(r => {
-    const ok = (!txt || (r.dataset.name + r.dataset.email).includes(txt)) && (!trk || r.dataset.track === trk);
+    const ok = (!txt || r.dataset.name.includes(txt)) && (!trk || r.dataset.track === trk);
     r.style.display = ok ? '' : 'none'; if (ok) v++;
   });
   document.getElementById('r-count').textContent = v + ' shown';
@@ -1062,13 +1040,20 @@ async function openResultModal(candidateId) {
     document.getElementById('rm-name').textContent = data.fullName;
     let html = `<div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.1rem;flex-wrap:wrap">
       <span class="badge badge-${data.trackSlug}">${data.trackName}</span>
-      <span style="font-size:.75rem;color:var(--muted)">${data.email}</span>
       <span style="font-size:.75rem;color:var(--muted);margin-left:auto">${data.totalAnswers} answers submitted</span>
+      <span class="badge badge-${data.resultStatus === 'Pass' ? 'pass' : 'fail'}">${data.resultStatus} - ${data.scorePercent}%</span>
+      <a class="btn btn-secondary btn-xs" href="/Admin/Results/${candidateId}/Pdf">Download PDF</a>
     </div>`;
     data.answers.forEach((a, i) => {
+      const isMcq = (a.questionType || '').toLowerCase() === 'mcq';
+      const correctness = isMcq
+        ? `<span class="badge badge-${a.isCorrect ? 'pass' : 'fail'}">${a.isCorrect ? 'Correct' : 'Incorrect'}</span>
+           <span style="font-size:.72rem;color:var(--muted)">Correct answer: ${escHtml(a.correctAnswer || '-')}</span>`
+        : '';
       html += `<div class="answer-card">
         <div class="answer-q"><span class="answer-qtag">Q${i+1}</span>${escHtml(a.questionText)}</div>
         <div class="answer-text">${a.answerText ? escHtml(a.answerText) : '<em style="color:var(--dim)">No answer provided</em>'}</div>
+        <div style="display:flex;gap:.5rem;margin-top:.55rem;align-items:center;flex-wrap:wrap">${correctness}</div>
       </div>`;
     });
     body.innerHTML = html;
@@ -1079,45 +1064,6 @@ async function openResultModal(candidateId) {
 function escHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-
-// ── EMAIL: Send pass/fail decision ────────────────────────────────────────────
-let _pendingEmail = null;
-function sendDecision(candidateId, name, email, decision) {
-  _pendingEmail = { candidateId, name, email, decision };
-  const isPass = decision === 'pass';
-  document.getElementById('email-modal-title').textContent = isPass ? '✓ Send Pass Email' : '✗ Send Fail Email';
-  document.getElementById('email-confirm-text').innerHTML =
-    `Send a <strong style="color:${isPass ? 'var(--green)' : 'var(--red)'}">${decision.toUpperCase()}</strong>
-     decision email to <strong>${escHtml(name)}</strong> at <strong>${escHtml(email)}</strong>?`;
-  const btn = document.getElementById('email-confirm-btn');
-  btn.className   = isPass ? 'btn btn-green' : 'btn btn-danger';
-  btn.textContent = `Send ${decision.toUpperCase()} Email`;
-  openModal('email-modal');
-}
-
-document.getElementById('email-confirm-btn').addEventListener('click', async function () {
-  if (!_pendingEmail) return;
-  const { candidateId, name, decision } = _pendingEmail;
-  closeModal('email-modal');
-  try {
-    const fd = new FormData();
-    fd.append('candidateId', candidateId);
-    fd.append('decision', decision);
-    fd.append('__RequestVerificationToken', CSRF());
-    const res  = await fetch('/Admin/SendDecisionEmail', { method: 'POST', body: fd });
-    const json = await res.json();
-    if (json.success) {
-      const cell = document.getElementById(`decision-${candidateId}`);
-      if (cell) cell.innerHTML = `<span class="badge badge-${decision === 'pass' ? 'pass' : 'fail'}">${decision === 'pass' ? 'Pass' : 'Fail'}</span> <span class="email-sent">✓ Emailed</span>`;
-      toast(`Email sent to ${name} successfully.`, 'success');
-    } else {
-      toast('Failed to send email: ' + (json.error || 'Unknown error'), 'error');
-    }
-  } catch(e) {
-    toast('Network error. Please try again.', 'error');
-  }
-  _pendingEmail = null;
-});
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 filterCands(); filterQ(); filterR();

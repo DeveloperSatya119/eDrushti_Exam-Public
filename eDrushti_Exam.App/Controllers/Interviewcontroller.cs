@@ -23,7 +23,7 @@ namespace eDrushti_Exam.App.Controllers
             if (await _interviewService.HasSubmittedAsync(candidateId))
                 return View("AlreadySubmitted");
 
-            var topics = await _interviewService.GetTopicsWithQuestionsAsync(trackId);
+            var topics = await _interviewService.GetTopicsWithQuestionsAsync(candidateId, trackId);
 
             ViewBag.CandidateName = User.Identity?.Name;
             ViewBag.TrackName = User.FindFirst("TrackName")?.Value ?? "Interview";

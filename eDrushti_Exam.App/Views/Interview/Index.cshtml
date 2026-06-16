@@ -600,7 +600,7 @@ const QUESTIONS = [
   {
     foreach (var q in topic.Questions)
     {
-      @:{ id:@q.Id, text:@Html.Raw(System.Text.Json.JsonSerializer.Serialize(q.QuestionText)), hint:@Html.Raw(System.Text.Json.JsonSerializer.Serialize(q.HintText??"")), topic:@Html.Raw(System.Text.Json.JsonSerializer.Serialize(topic.Name)) },
+      @:{ id:@q.Id, text:@Html.Raw(System.Text.Json.JsonSerializer.Serialize(q.QuestionText)), hint:@Html.Raw(System.Text.Json.JsonSerializer.Serialize(q.HintText??"")), topic:@Html.Raw(System.Text.Json.JsonSerializer.Serialize(topic.Name)), type:@Html.Raw(System.Text.Json.JsonSerializer.Serialize(q.QuestionType)), options:{ A:@Html.Raw(System.Text.Json.JsonSerializer.Serialize(q.OptionA??"")), B:@Html.Raw(System.Text.Json.JsonSerializer.Serialize(q.OptionB??"")), C:@Html.Raw(System.Text.Json.JsonSerializer.Serialize(q.OptionC??"")), D:@Html.Raw(System.Text.Json.JsonSerializer.Serialize(q.OptionD??"")) } },
     }
   }
 ];
@@ -612,8 +612,10 @@ let   saveT   = null;
 // ── Detect question type ──────────────────────────────────────────────────────
 // Returns: 'mcq' | 'coding' | 'text'
 function getType(q) {
+  const explicitType = (q.type || '').toLowerCase();
+  if (explicitType === 'mcq') return 'mcq';
+  if (explicitType === 'coding') return 'coding';
   const t = q.topic.toLowerCase();
-  if (t === 'mcq') return 'mcq';
   if (t === 'coding') return 'coding';
   return 'text';
 }
@@ -674,7 +676,10 @@ function render(i) {
 
   if (type === 'mcq') {
     // ── MCQ rendering ──
-    const parsed = parseMCQ(q.text);
+    const optionEntries = Object.entries(q.options || {}).filter(([, text]) => text && text.trim());
+    const parsed = optionEntries.length >= 2
+      ? { stem: q.text, options: optionEntries.map(([label, text]) => ({ label, text })) }
+      : parseMCQ(q.text);
 
     if (parsed) {
       qBody.textContent       = parsed.stem;

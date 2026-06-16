@@ -11,8 +11,12 @@
         public bool IsActive { get; set; } = true;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public bool IsAdmin { get; set; } = false;
+        public decimal? ScorePercent { get; set; }
+        public string? ResultStatus { get; set; }
+        public DateTime? SubmittedAt { get; set; }
         // Navigation
         public Track? Track { get; set; }
         public ICollection<CandidateAnswer> Answers { get; set; } = new List<CandidateAnswer>();
+        public ICollection<CandidateQuestion> AssignedQuestions { get; set; } = new List<CandidateQuestion>();
     }
 }
